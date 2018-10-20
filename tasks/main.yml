@@ -1,0 +1,62 @@
+---
+# tasks file for ansible-yumrepo
+- name: Create yum repo
+  shell:  python -m SimpleHTTPServer 38888 > /dev/null 2>&1  &
+  args:
+    chdir: "{{ packages_dir }}"
+	delegate_to: localhost
+	run_once: true
+
+- name: Check 3888 port status
+  wait_for:
+    port: 38888
+    delay: 3
+    timeout: 5
+    msg: "Timeout waiting for 38888 port to respond"
+
+- name: Ensure repo bak directory exist
+  file:
+    path: /etc/yum.repos.d/bak
+    state: directory
+    mode: 0755
+
+- name: Backup .repo file if exist
+  shell: mv *.repo bak/
+  args:
+    chdir: /etc/yum.repos.d/
+    removes: /etc/yum.repos.d/*.repo
+
+- name: Config repo configuration
+  template:
+    src: sys.repo.j2
+    dest: /etc/yum.repos.d/sys.repo
+
+- name: Ensure iptables package exist
+  package:
+    name: iptables
+    state: present
+  delegate_to: localhost
+  run_once: true
+
+- name: Open port on iptables| 38888
+  iptables:
+    chain: INPUT
+    jump: ACCEPT
+    protocol: tcp
+    destination_port: 38888
+  delegate_to: localhost
+  run_once: true
+
+- name: Check firewalld package whether or not installed
+  stat:
+    path: /usr/sbin/firewalld
+  register: firewalld_file_state
+
+- name: Disable the firewalld
+  systemd:
+    name: firewalld
+    state: stopped
+    enabled: no
+  when:
+    - ansible_distribution_version != "7.3.1611"
+    - firewalld_file_state.stat.exists

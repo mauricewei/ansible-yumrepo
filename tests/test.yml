@@ -1,0 +1,5 @@
+---
+- hosts: all
+  remote_user: root
+  roles:
+    - { role: ansible-yumrepo, packages_dir: /opt/packages }
